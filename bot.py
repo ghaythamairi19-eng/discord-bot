@@ -296,3 +296,22 @@ async def season_reset(interaction: discord.Interaction):
     await interaction.response.send_message("🔄 Season Reset Done!")
 
 bot.run(os.environ["TOKEN"])
+import threading
+from flask import Flask
+import os
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run():
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8000)))
+
+def keep_alive():
+    t = threading.Thread(target=run)
+    t.start()
+
+keep_alive()
+bot.run(os.environ["TOKEN"])

@@ -91,7 +91,53 @@ async def profile(interaction: discord.Interaction):
     embed.set_thumbnail(url=interaction.user.avatar.url if interaction.user.avatar else None)
 
     await interaction.response.send_message(embed=embed)
+@bot.command(name="u")
+async def user_prefix(ctx, member: discord.Member = None):
 
+    if member is None:
+        member = ctx.author
+
+    data = load_data()
+    user_id = str(member.id)
+
+    level = 0
+    xp = 0
+
+    if user_id in data:
+        level = data[user_id]["level"]
+        xp = data[user_id]["xp"]
+
+    embed = discord.Embed(
+        title=f"👤 معلومات {member.name}",
+        color=member.color
+    
+
+    embed.set_thumbnail(url=member.display_avatar.url)
+
+    embed.add_field(name="🆔 ID", value=member.id, inline=False)
+    embed.add_field(name="📊 Level", value=level, inline=True)
+    embed.add_field(name="⭐ XP", value=xp, inline=True)
+    embed.add_field(name="📅 انضم للسيرفر", value=member.joined_at.strftime("%Y-%m-%d"), inline=False)
+    embed.add_field(name="🗓️ تاريخ إنشاء الحساب", value=member.created_at.strftime("%Y-%m-%d"), inline=False)
+
+    await ctx.send(embed=embed)
+    @bot.tree.command(name="slots", description="جرب حظك في السلوت")
+async def slots(interaction: discord.Interaction):
+
+    emojis = ["🍎", "🍌", "🍇", "🍒"]
+    result = [random.choice(emojis) for _ in range(3)]
+
+    if result[0] == result[1] == result[2]:
+        msg = "🔥 JACKPOT! فزت!"
+    else:
+        msg = "حظ أوفر المرة الجاية 😅"
+
+    embed = discord.Embed(title="🎰 Slot Machine", color=discord.Color.gold())
+    embed.add_field(name="النتيجة", value=" | ".join(result), inline=False)
+    embed.add_field(name="الحكم", value=msg)
+
+    await interaction.response.send_message(embed=embed)
+    
 # ================= DAILY =================
 
 @tree.command(name="daily", description="Claim daily reward")
@@ -105,7 +151,7 @@ async def daily(interaction: discord.Interaction):
         await interaction.response.send_message("⏳ You already claimed today!")
         return
 
-    reward = random.randint(100, 300)
+    reward = random.randint(50, 150)
     user["coins"] += reward
     user["last_daily"] = today
     save_data(data)
@@ -123,9 +169,9 @@ async def balance(interaction: discord.Interaction):
 # ================= SHOP =================
 
 SHOP_ITEMS = {
-    "Red Name": 500,
-    "Blue Name": 500,
-    "VIP Role": 2000
+    "Red Name": 1000,
+    "Blue Name": 1000,
+    "VIP Role": 20000
 }
 
 @tree.command(name="shop", description="View shop items")

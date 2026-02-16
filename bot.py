@@ -107,7 +107,7 @@ async def user_prefix(ctx, member: discord.Member = None):
         level = data[user_id]["level"]
         xp = data[user_id]["xp"]
 
-    embed = discord.Embed(
+    embed = discord.Embed()
         title=f"👤 معلومات {member.name}",
         color=member.color
     

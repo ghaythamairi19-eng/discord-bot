@@ -76,133 +76,30 @@ async def on_message(message):
     save_data(data)
     await bot.process_commands(message)
 
-# ================= PROFILE =================
+# ================= PROFILE ===============
+const { joinVoiceChannel } = require('@discordjs/voice');
 
-@tree.command(name="profile", description="View your profile")
-async def profile(interaction: discord.Interaction):
-    data = load_data()
-    user = get_user(data, interaction.user.id)
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
 
-    embed = discord.Embed(title=f"{interaction.user.name} Profile", color=discord.Color.blue())
-    embed.add_field(name="Level", value=user["level"])
-    embed.add_field(name="XP", value=user["xp"])
-    embed.add_field(name="Coins", value=user["coins"])
-    embed.add_field(name="Badges", value=", ".join(user["badges"]) or "None")
-    embed.set_thumbnail(url=interaction.user.avatar.url if interaction.user.avatar else None)
+  if (interaction.commandName === 'join') {
+    const channel = interaction.member.voice.channel;
 
-    await interaction.response.send_message(embed=embed)
-@bot.command(name="u")
-async def user_prefix(ctx, member: discord.Member = None):
+    if (!channel) {
+      return interaction.reply('❌ لازم تدخل روم صوتي أولاً');
+    }
 
-    if member is None:
-        member = ctx.author
+    joinVoiceChannel({
+      channelId: channel.id,
+      guildId: channel.guild.id,
+      adapterCreator: channel.guild.voiceAdapterCreator,
+    });
 
-    data = load_data()
-    user_id = str(member.id)
+    interaction.reply('✅ دخلت الروم الصوتي');
+  }
+});
 
-    level = 0
-    xp = 0
-
-    if user_id in data:
-        level = data[user_id]["level"]
-        xp = data[user_id]["xp"]
-
-    embed = discord.Embed()
-        title=f"👤 معلومات {member.name}",
-        color=member.color
     
-
-    embed.set_thumbnail(url=member.display_avatar.url)
-
-    embed.add_field(name="🆔 ID", value=member.id, inline=False)
-    embed.add_field(name="📊 Level", value=level, inline=True)
-    embed.add_field(name="⭐ XP", value=xp, inline=True)
-    embed.add_field(name="📅 انضم للسيرفر", value=member.joined_at.strftime("%Y-%m-%d"), inline=False)
-    embed.add_field(name="🗓️ تاريخ إنشاء الحساب", value=member.created_at.strftime("%Y-%m-%d"), inline=False)
-
-    await ctx.send(embed=embed)
-    @bot.tree.command(name="slots", description="جرب حظك في السلوت")
-async def slots(interaction: discord.Interaction):
-
-    emojis = ["🍎", "🍌", "🍇", "🍒"]
-    result = [random.choice(emojis) for _ in range(3)]
-
-    if result[0] == result[1] == result[2]:
-        msg = "🔥 JACKPOT! فزت!"
-    else:
-        msg = "حظ أوفر المرة الجاية 😅"
-
-    embed = discord.Embed(title="🎰 Slot Machine", color=discord.Color.gold())
-    embed.add_field(name="النتيجة", value=" | ".join(result), inline=False)
-    embed.add_field(name="الحكم", value=msg)
-
-    await interaction.response.send_message(embed=embed)
-    
-# ================= DAILY =================
-
-@tree.command(name="daily", description="Claim daily reward")
-async def daily(interaction: discord.Interaction):
-    data = load_data()
-    user = get_user(data, interaction.user.id)
-
-    today = str(datetime.date.today())
-
-    if user["last_daily"] == today:
-        await interaction.response.send_message("⏳ You already claimed today!")
-        return
-
-    reward = random.randint(50, 150)
-    user["coins"] += reward
-    user["last_daily"] = today
-    save_data(data)
-
-    await interaction.response.send_message(f"💰 You received {reward} coins!")
-
-# ================= BALANCE =================
-
-@tree.command(name="balance", description="Check your balance")
-async def balance(interaction: discord.Interaction):
-    data = load_data()
-    user = get_user(data, interaction.user.id)
-    await interaction.response.send_message(f"💰 Coins: {user['coins']}")
-
-# ================= SHOP =================
-
-SHOP_ITEMS = {
-    "Red Name": 1000,
-    "Blue Name": 1000,
-    "VIP Role": 20000
-}
-
-@tree.command(name="shop", description="View shop items")
-async def shop(interaction: discord.Interaction):
-    embed = discord.Embed(title="🛒 Shop")
-    for item, price in SHOP_ITEMS.items():
-        embed.add_field(name=item, value=f"{price} coins")
-    await interaction.response.send_message(embed=embed)
-
-@tree.command(name="buy", description="Buy item")
-@app_commands.describe(item="Item name")
-async def buy(interaction: discord.Interaction, item: str):
-    data = load_data()
-    user = get_user(data, interaction.user.id)
-
-    if item not in SHOP_ITEMS:
-        await interaction.response.send_message("❌ Item not found.")
-        return
-
-    price = SHOP_ITEMS[item]
-
-    if user["coins"] < price:
-        await interaction.response.send_message("❌ Not enough coins.")
-        return
-
-    user["coins"] -= price
-    user["badges"].append(item)
-    save_data(data)
-
-    await interaction.response.send_message(f"✅ You bought {item}!")
-
 # ================= GAME XP =================
 
 @tree.command(name="addxp", description="Add XP to a game")

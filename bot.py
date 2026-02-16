@@ -1,14 +1,18 @@
 import discord
 from discord.ext import commands
-import os
 import sqlite3
+import os
 import random
-import time
+import asyncio
 
-intents = discord.Intents.all()
+# ========= INTENTS =========
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
-# ================= DATABASE =================
+# ========= DATABASE =========
 conn = sqlite3.connect("gaming.db")
 cursor = conn.cursor()
 
@@ -23,172 +27,133 @@ CREATE TABLE IF NOT EXISTS users (
 """)
 conn.commit()
 
-cooldown = {}
+# ========= GAMES =========
+GAMES = ["amongus", "stumble", "efootball", "freefire", "sporcle", "bloodstrike", "minecraft"]
 
-# ================= HELP =================
-@bot.command()
-async def help(ctx):
-    await ctx.send("""
-🎮 **Gaming Bot Commands**
+# ========= RANK SYSTEM =========
+def get_rank(xp):
+    if xp >= 5000:
+        return "🏆 Legend"
+    elif xp >= 3000:
+        return "🔥 Elite"
+    elif xp >= 1500:
+        return "💎 Pro Player"
+    else:
+        return "🎮 Gamer"
 
-💰 Economy:
-!balance
-!daily
-!work
-
-🎮 Games:
-!game amongus/minecraft/freefire/stumble
-!rank amongus
-!top amongus
-!lfg minecraft
-
-👑 Profile:
-!profile
-
-🛡 Admin:
-!clear 5
-""")
-
-# ================= READY =================
+# ========= READY =========
 @bot.event
 async def on_ready():
     print(f"🔥 Bot Online as {bot.user}")
 
-# ================= WELCOME =================
-@bot.event
-async def on_member_join(member):
-    channel = discord.utils.get(member.guild.text_channels, name="general")
-    role = discord.utils.get(member.guild.roles, name="Member")
-
-    if role:
-        await member.add_roles(role)
-
-    if channel:
-        await channel.send(f"🎉 مرحبا {member.mention} في السيرفر 🔥")
-
-    try:
-        await member.send("👑 مرحبا بك في Gaming Hub!")
-    except:
-        pass
-
-# ================= XP SYSTEM =================
+# ========= AUTO XP =========
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
-    user = str(message.author.id)
+    game = "minecraft"  # تقدر تبدلها حسب روم اللعبة
 
-    if user not in cooldown or time.time() - cooldown[user] > 10:
-        cooldown[user] = time.time()
+    cursor.execute("INSERT OR IGNORE INTO users (user_id, game) VALUES (?, ?)",
+                   (str(message.author.id), game))
 
-        game = "global"
+    cursor.execute("UPDATE users SET xp = xp + ? WHERE user_id = ? AND game = ?",
+                   (random.randint(5, 15), str(message.author.id), game))
 
-        cursor.execute("INSERT OR IGNORE INTO users (user_id, game, xp, money) VALUES (?, ?, 0, 0)", (user, game))
-        cursor.execute("UPDATE users SET xp = xp + 5 WHERE user_id = ? AND game = ?", (user, game))
-        conn.commit()
-
-        cursor.execute("SELECT xp FROM users WHERE user_id = ? AND game = ?", (user, game))
-        xp = cursor.fetchone()[0]
-
-        level = xp // 100
-
-        if xp % 500 == 0:
-            await message.channel.send(f"🎉 {message.author.mention} وصل Level {level}")
+    conn.commit()
 
     await bot.process_commands(message)
 
-# ================= PROFILE =================
+# ========= PROFILE =========
 @bot.command()
-async def profile(ctx):
-    user = str(ctx.author.id)
+async def profile(ctx, game: str):
+    game = game.lower()
 
-    cursor.execute("INSERT OR IGNORE INTO users (user_id, game, xp, money) VALUES (?, 'global', 0, 0)", (user,))
-    cursor.execute("SELECT xp, money FROM users WHERE user_id = ? AND game = 'global'", (user,))
+    if game not in GAMES:
+        await ctx.send("❌ Game not found.")
+        return
+
+    cursor.execute("SELECT xp, money FROM users WHERE user_id = ? AND game = ?",
+                   (str(ctx.author.id), game))
     data = cursor.fetchone()
 
-    xp, money = data
-    level = xp // 100
+    if not data:
+        await ctx.send("❌ No data yet.")
+        return
 
-    embed = discord.Embed(title="👑 Profile", color=discord.Color.blue())
-    embed.add_field(name="Level", value=level)
+    xp, money = data
+    rank = get_rank(xp)
+
+    embed = discord.Embed(title=f"{ctx.author.name} - {game.upper()}",
+                          color=discord.Color.blue())
     embed.add_field(name="XP", value=xp)
     embed.add_field(name="Money", value=money)
+    embed.add_field(name="Rank", value=rank)
 
     await ctx.send(embed=embed)
 
-# ================= ECONOMY =================
+# ========= DAILY =========
 @bot.command()
-async def balance(ctx):
-    await profile(ctx)
+async def daily(ctx, game: str):
+    game = game.lower()
 
-@bot.command()
-async def daily(ctx):
-    user = str(ctx.author.id)
-    reward = random.randint(100,300)
+    if game not in GAMES:
+        await ctx.send("❌ Game not found.")
+        return
 
-    cursor.execute("UPDATE users SET money = money + ? WHERE user_id = ? AND game = 'global'", (reward, user))
+    amount = random.randint(100, 300)
+
+    cursor.execute("INSERT OR IGNORE INTO users (user_id, game) VALUES (?, ?)",
+                   (str(ctx.author.id), game))
+
+    cursor.execute("UPDATE users SET money = money + ? WHERE user_id = ? AND game = ?",
+                   (amount, str(ctx.author.id), game))
+
     conn.commit()
 
-    await ctx.send(f"🎁 ربحت {reward} 💰")
+    await ctx.send(f"💰 You received {amount} coins!")
 
+# ========= LEADERBOARD =========
 @bot.command()
-async def work(ctx):
-    user = str(ctx.author.id)
-    reward = random.randint(50,150)
+async def top(ctx, game: str):
+    game = game.lower()
 
-    cursor.execute("UPDATE users SET money = money + ? WHERE user_id = ? AND game = 'global'", (reward, user))
-    conn.commit()
+    if game not in GAMES:
+        await ctx.send("❌ Game not found.")
+        return
 
-    await ctx.send(f"💼 خدمت وربحت {reward} 💰")
-
-# ================= GAME ROLE =================
-@bot.command()
-async def game(ctx, game_name):
-    role = discord.utils.get(ctx.guild.roles, name=game_name.capitalize())
-    if role:
-        await ctx.author.add_roles(role)
-        await ctx.send(f"🎮 تم إعطاؤك رول {role.name}")
-    else:
-        await ctx.send("❌ اللعبة غير موجودة")
-
-# ================= RANK PER GAME =================
-@bot.command()
-async def rank(ctx, game_name):
-    user = str(ctx.author.id)
-
-    cursor.execute("INSERT OR IGNORE INTO users (user_id, game, xp, money) VALUES (?, ?, 0, 0)", (user, game_name))
-    cursor.execute("SELECT xp FROM users WHERE user_id = ? AND game = ?", (user, game_name))
-    xp = cursor.fetchone()[0]
-
-    level = xp // 100
-
-    await ctx.send(f"🎮 Rank in {game_name}: Level {level} | XP {xp}")
-
-# ================= TOP =================
-@bot.command()
-async def top(ctx, game_name):
-    cursor.execute("SELECT user_id, xp FROM users WHERE game = ? ORDER BY xp DESC LIMIT 5", (game_name,))
+    cursor.execute("SELECT user_id, xp FROM users WHERE game = ? ORDER BY xp DESC LIMIT 10",
+                   (game,))
     data = cursor.fetchall()
 
-    msg = "🏆 Top Players:\n"
-    for i, row in enumerate(data, start=1):
-        user = await bot.fetch_user(int(row[0]))
-        msg += f"{i}. {user.name} - {row[1]} XP\n"
+    if not data:
+        await ctx.send("No players yet.")
+        return
 
-    await ctx.send(msg)
+    embed = discord.Embed(title=f"🏆 Top Players - {game.upper()}",
+                          color=discord.Color.gold())
 
-# ================= LFG =================
+    for i, (user_id, xp) in enumerate(data, start=1):
+        user = await bot.fetch_user(int(user_id))
+        embed.add_field(name=f"{i}. {user.name}", value=f"{xp} XP", inline=False)
+
+    await ctx.send(embed=embed)
+
+# ========= HELP =========
 @bot.command()
-async def lfg(ctx, game_name):
-    role = discord.utils.get(ctx.guild.roles, name=game_name.capitalize())
-    if role:
-        await ctx.send(f"🔥 {ctx.author.mention} يبحث عن لاعبين {role.mention}")
+async def help(ctx):
+    embed = discord.Embed(title="🎮 Gaming Bot Commands",
+                          color=discord.Color.green())
 
-# ================= CLEAR =================
-@bot.command()
-@commands.has_permissions(manage_messages=True)
-async def clear(ctx, amount: int):
-    await ctx.channel.purge(limit=amount + 1)
+    embed.add_field(name="!profile <game>", value="Show your stats", inline=False)
+    embed.add_field(name="!daily <game>", value="Claim daily coins", inline=False)
+    embed.add_field(name="!top <game>", value="Leaderboard", inline=False)
 
+    embed.add_field(name="Games",
+                    value=", ".join(GAMES),
+                    inline=False)
+
+    await ctx.send(embed=embed)
+
+# ========= RUN =========
 bot.run(os.environ["TOKEN"])

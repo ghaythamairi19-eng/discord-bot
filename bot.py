@@ -6,7 +6,7 @@ import random
 import time
 
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 # ================= DATABASE =================
 conn = sqlite3.connect("gaming.db")

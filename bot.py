@@ -249,4 +249,4 @@ async def season_reset(interaction: discord.Interaction):
     save_data(data)
     await interaction.response.send_message("🔄 Season Reset Done!")
 
-bot.run(TOKEN)
+bot.run(os.environ["TOKEN"])

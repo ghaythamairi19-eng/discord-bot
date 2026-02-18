@@ -1,14 +1,17 @@
 import discord
-from discord import app_commands
-from discord.ext import commands, tasks
-import aiosqlite
-import random
-import asyncio
-
-TOKEN = "PUT_YOUR_TOKEN_HERE"
+from discord.ext import commands
+import os
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+TOKEN = os.getenv("TOKEN")
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
+
+bot.run(TOKEN)
 
 # ================= DATABASE =================
 
